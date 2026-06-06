@@ -33,10 +33,16 @@ Return ONLY JSON.
       ],
     });
 
-  const raw =
-    completion.choices[0].message.content;
+  // const raw =
+  //   completion.choices[0].message.content;
 
-  console.log("AI RAW:", raw);
+const cleaned =
+  raw
+    .replace(/```json/g, "")
+    .replace(/```/g, "")
+    .trim();
 
-  return JSON.parse(raw);
+console.log("CLEANED:", cleaned);
+
+return JSON.parse(cleaned);
 }
