@@ -6,9 +6,13 @@ import "dotenv/config";
 
 const userInput =
   "read package.json and list files";
+
 const rawPlans =
   await chooseTool(userInput);
-const plans = rawPlans.map(normalizePlan);
+// const results = [];
+
+const plans =
+  rawPlans.map(normalizePlan);
 
 for (const plan of plans) {
   validateTool(plan);
@@ -17,6 +21,11 @@ for (const plan of plans) {
     await toolRegistry[plan.tool](
       plan.arguments
     );
+
+  results.push({
+    tool: plan.tool,
+    result
+  });
 
   console.log(result);
 }

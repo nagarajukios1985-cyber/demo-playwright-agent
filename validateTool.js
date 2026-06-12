@@ -2,9 +2,14 @@ import { toolSchemas }
 from "./toolSchemas.js";
 
 export function validateTool(
-  tool,
-  args
+  plan
 ) {
+  const tool =
+    plan.tool;
+
+  const args =
+    plan.arguments || {};
+
   const required =
     toolSchemas[tool] || [];
 
