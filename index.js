@@ -1,31 +1,27 @@
 import { chooseTool } from "./aiRouter.js";
 import { toolRegistry } from "./toolRegistry.js";
-import { normalizePlan } from "./normalizePlan.js";
-import { validateTool } from "./validateTool.js";
-import "dotenv/config";
 
-const userInput =
-  "read package.json and list files";
+const input = process.argv.slice(2).join(" ");
 
-const rawPlans =
-  await chooseTool(userInput);
-// const results = [];
+if (!input) {
+  console.log('Usage: node index.js "your command"');
+  process.exit(1);
+}
 
-const plans =
-  rawPlans.map(normalizePlan);
+console.log("Ask:", input);
 
-for (const plan of plans) {
-  validateTool(plan);
+const decisions = await chooseTool(input);
 
-  const result =
-    await toolRegistry[plan.tool](
-      plan.arguments
-    );
+for (const decision of decisions) {
+  const toolFn = toolRegistry[decision.tool];
 
-  results.push({
-    tool: plan.tool,
-    result
-  });
+  if (!toolFn) {
+    console.log("Tool not found:", decision.tool);
+    continue;
+  }
 
+  const result = await toolFn(decision.arguments);
+
+  console.log(`\n=== ${decision.tool} ===`);
   console.log(result);
 }

@@ -1,8 +1,8 @@
-import { runCommand } from "./runCommand.js";
-import { listFiles } from "./listFiles.js";
-import { readFile } from "./readFile.js";
-import { createFile } from "./createFile.js";
-import { editFile } from "./editFile.js";
+import { runCommand } from "./tools/runCommand.js";
+import { listFiles } from "./tools/listFiles.js";
+import { readFile } from "./tools/readFile.js";
+import { createFile } from "./tools/createFile.js";
+import { editFile } from "./tools/editFile.js";
 
 export const toolRegistry = {
   runCommand,
