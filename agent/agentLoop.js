@@ -1,8 +1,13 @@
-// agentLoop.js
+import { chooseTool } from "../aiRouter.js";
+import { toolRegistry } from "../toolRegistry.js";
+import { validateTool } from "../core/validateTool.js";
 
-import { chooseTool } from "./aiRouter.js";
-import { toolRegistry } from "./toolRegistry.js";
-import { validateTool } from "./validateTool.js";
+import {
+  addFailure,
+  addSuccess,
+  addToolHistory,
+  getMemory
+} from "./memory.js";
 
 export async function runAgent(userInput) {
 
@@ -16,10 +21,26 @@ export async function runAgent(userInput) {
       `\n=== AGENT STEP ${step + 1} ===`
     );
 
-    const plan =
-      await chooseTool(context);
+    const memory = getMemory();
 
-    // AI says task complete
+    const enrichedContext = `
+USER REQUEST:
+${context}
+
+MEMORY:
+${JSON.stringify(memory, null, 2)}
+`;
+
+    const plan =
+      await chooseTool(enrichedContext);
+
+    if (!plan) {
+      throw new Error(
+        "AI returned empty plan"
+      );
+    }
+
+    // AI finished task
     if (plan.done) {
       return {
         answer: plan.answer,
@@ -32,25 +53,109 @@ export async function runAgent(userInput) {
         ? plan[0]
         : plan;
 
-    validateTool(toolCall);
+    if (!toolCall?.tool) {
+      throw new Error(
+        "Invalid tool format from AI"
+      );
+    }
 
-    const result =
-      await toolRegistry[
-        toolCall.tool
-      ](
+    const validation =
+      validateTool(
+        toolCall.tool,
         toolCall.arguments
       );
 
-    history.push({
-      tool: toolCall.tool,
-      result
-    });
+    if (!validation.ok) {
 
-    context += `
+      addFailure({
+        tool: toolCall.tool,
+        error: validation.error,
+        input: toolCall.arguments
+      });
 
-Tool Result:
-${JSON.stringify(result)}
+      throw new Error(
+        validation.error
+      );
+    }
+
+    const toolFn =
+      toolRegistry[toolCall.tool];
+
+    if (!toolFn) {
+
+      addFailure({
+        tool: toolCall.tool,
+        error: "Tool not registered",
+        input: toolCall.arguments
+      });
+
+      throw new Error(
+        `Tool not found: ${toolCall.tool}`
+      );
+    }
+
+    let result;
+
+    try {
+
+      result =
+        await toolFn(
+          toolCall.arguments
+        );
+
+      addToolHistory({
+        tool: toolCall.tool,
+        input: toolCall.arguments,
+        output: result
+      });
+
+      addSuccess({
+        tool: toolCall.tool,
+        input: toolCall.arguments
+      });
+
+      history.push({
+        tool: toolCall.tool,
+        result
+      });
+
+      context += `
+
+TOOL EXECUTED:
+${toolCall.tool}
+
+RESULT:
+${JSON.stringify(result).slice(0, 2000)}
 `;
+
+    } catch (error) {
+
+      addFailure({
+        tool: toolCall.tool,
+        error: error.message,
+        input: toolCall.arguments
+      });
+
+      history.push({
+        tool: toolCall.tool,
+        error: error.message
+      });
+
+      context += `
+
+TOOL FAILED:
+${toolCall.tool}
+
+ERROR:
+${error.message}
+`;
+
+      console.log(
+        `Tool failed: ${error.message}`
+      );
+
+      continue;
+    }
   }
 
   throw new Error(

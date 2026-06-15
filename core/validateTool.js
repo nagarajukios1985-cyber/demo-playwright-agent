@@ -1,25 +1,34 @@
-import { toolSchemas }
-from "./toolSchemas.js";
+import { toolSchemas } from "./toolSchemas.js";
 
 export function validateTool(
-  plan
+  toolName,
+  args = {}
 ) {
-  const tool =
-    plan.tool;
 
-  const args =
-    plan.arguments || {};
+  const schema =
+    toolSchemas[toolName];
 
-  const required =
-    toolSchemas[tool] || [];
+  if (!schema) {
+    return {
+      ok: false,
+      error: `Unknown tool: ${toolName}`
+    };
+  }
 
-  for (const field of required) {
+  for (const field of schema.required || []) {
+
     if (
-      args[field] === undefined
+      args[field] === undefined ||
+      args[field] === null
     ) {
-      throw new Error(
-        `${tool} requires ${field}`
-      );
+      return {
+        ok: false,
+        error: `Missing required argument: ${field}`
+      };
     }
   }
+
+  return {
+    ok: true
+  };
 }

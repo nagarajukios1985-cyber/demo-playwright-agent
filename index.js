@@ -1,5 +1,4 @@
-import { chooseTool } from "./aiRouter.js";
-import { toolRegistry } from "./toolRegistry.js";
+import { runFixLoop } from "./agent/fixLoop.js";
 
 const input = process.argv.slice(2).join(" ");
 
@@ -10,18 +9,7 @@ if (!input) {
 
 console.log("Ask:", input);
 
-const decisions = await chooseTool(input);
+const result = await runFixLoop(input);
 
-for (const decision of decisions) {
-  const toolFn = toolRegistry[decision.tool];
-
-  if (!toolFn) {
-    console.log("Tool not found:", decision.tool);
-    continue;
-  }
-
-  const result = await toolFn(decision.arguments);
-
-  console.log(`\n=== ${decision.tool} ===`);
-  console.log(result);
-}
+console.log("\n=== FINAL RESULT ===");
+console.log(JSON.stringify(result, null, 2));

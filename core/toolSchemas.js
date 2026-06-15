@@ -1,19 +1,22 @@
-  export const toolSchemas = {
-  readFile: ["path"],
+export const toolSchemas = {
 
-  listFiles: ["path"],
+  readFile: {
+    required: ["path"]
+  },
 
-  createFile: [
-    "path",
-    "content",
-  ],
+  createFile: {
+    required: ["path", "content"]
+  },
 
-  editFile: [
-    "path",
-    "content",
-  ],
+  editFile: {
+    required: ["path", "content"]
+  },
 
-  runCommand: [
-    "command",
-  ],
+  listFiles: {
+    required: ["path"]
+  },
+
+  runCommand: {
+    required: ["command"]
+  }
 };
