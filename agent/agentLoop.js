@@ -1,11 +1,15 @@
 import { chooseTool } from "../aiRouter.js";
 import { toolRegistry } from "../toolRegistry.js";
 import { validateTool } from "../core/validateTool.js";
+import { reflect } from "./reflection.js";
+import { selfCorrect } from "./selfCorrection.js";
+
 
 import {
   addFailure,
   addSuccess,
   addToolHistory,
+  addReflection,
   getMemory
 } from "./memory.js";
 
@@ -22,6 +26,10 @@ export async function runAgent(userInput) {
     );
 
     const memory = getMemory();
+    console.log(
+      "\nMEMORY:",
+      JSON.stringify(memory, null, 2)
+    );
 
     const enrichedContext = `
 USER REQUEST:
@@ -30,6 +38,12 @@ ${context}
 MEMORY:
 ${JSON.stringify(memory, null, 2)}
 `;
+
+console.log(
+  "\nCONTEXT SENT TO AI:\n",
+  enrichedContext
+);
+
 
     const plan =
       await chooseTool(enrichedContext);
@@ -48,100 +62,190 @@ ${JSON.stringify(memory, null, 2)}
       };
     }
 
-    const toolCall =
+    const toolCalls =
       Array.isArray(plan)
-        ? plan[0]
-        : plan;
+        ? plan
+        : [plan];
 
-    if (!toolCall?.tool) {
-      throw new Error(
-        "Invalid tool format from AI"
-      );
-    }
+    for (const toolCall of toolCalls) {
 
-    const validation =
-      validateTool(
-        toolCall.tool,
-        toolCall.arguments
-      );
+      if (!toolCall?.tool) {
+        console.log("Invalid tool format");
+        continue;
+      }
 
-    if (!validation.ok) {
-
-      addFailure({
-        tool: toolCall.tool,
-        error: validation.error,
-        input: toolCall.arguments
-      });
-
-      throw new Error(
-        validation.error
-      );
-    }
-
-    const toolFn =
-      toolRegistry[toolCall.tool];
-
-    if (!toolFn) {
-
-      addFailure({
-        tool: toolCall.tool,
-        error: "Tool not registered",
-        input: toolCall.arguments
-      });
-
-      throw new Error(
-        `Tool not found: ${toolCall.tool}`
-      );
-    }
-
-    let result;
-
-    try {
-
-      result =
-        await toolFn(
+      const validation =
+        validateTool(
+          toolCall.tool,
           toolCall.arguments
         );
 
-      addToolHistory({
-        tool: toolCall.tool,
-        input: toolCall.arguments,
-        output: result
-      });
+      if (!validation.ok) {
 
-      addSuccess({
-        tool: toolCall.tool,
-        input: toolCall.arguments
-      });
+        addFailure({
+          tool: toolCall.tool,
+          error: validation.error,
+          input: toolCall.arguments
+        });
 
-      history.push({
-        tool: toolCall.tool,
-        result
-      });
+        console.log(validation.error);
 
-      context += `
+        continue;
+      }
 
-TOOL EXECUTED:
+      const toolFn =
+        toolRegistry[toolCall.tool];
+
+      if (!toolFn) {
+
+        addFailure({
+          tool: toolCall.tool,
+          error: "Tool not registered",
+          input: toolCall.arguments
+        });
+
+        console.log(
+          `Tool not found: ${toolCall.tool}`
+        );
+
+        continue;
+      }
+
+      try {
+
+        const result =
+          await toolFn(
+            toolCall.arguments
+          );
+
+        addToolHistory({
+          tool: toolCall.tool,
+          input: toolCall.arguments,
+          output: result
+        });
+
+        addSuccess({
+          tool: toolCall.tool,
+          input: toolCall.arguments
+        });
+
+        const reflection =
+          reflect(
+            toolCall.tool,
+            result,
+            null
+          );
+
+        addReflection(reflection);
+
+        history.push({
+          tool: toolCall.tool,
+          result
+        });
+
+        context += `
+
+TOOL:
 ${toolCall.tool}
 
 RESULT:
 ${JSON.stringify(result).slice(0, 2000)}
 `;
 
-    } catch (error) {
+      } catch (error) {
 
-      addFailure({
-        tool: toolCall.tool,
-        error: error.message,
-        input: toolCall.arguments
-      });
+        addFailure({
+          tool: toolCall.tool,
+          error: error.message,
+          input: toolCall.arguments
+        });
 
-      history.push({
-        tool: toolCall.tool,
-        error: error.message
-      });
+        const reflection =
+          reflect(
+            toolCall.tool,
+            null,
+            error.message
+          );
 
-      context += `
+        addReflection(reflection);
+
+        const correction =
+          selfCorrect(reflection);
+
+        if (correction) {
+
+          console.log(
+            "\nSELF CORRECTION:"
+          );
+
+          console.log(
+            JSON.stringify(
+              correction,
+              null,
+              2
+            )
+          );
+
+          const correctionTool =
+            toolRegistry[
+            correction.tool
+            ];
+
+          if (correctionTool) {
+
+            console.log(
+              "\nCORRECTION TOOL FOUND"
+            );
+            try {
+
+              const correctionResult =
+                await correctionTool(
+                  correction.arguments
+                );
+
+              console.log(
+                "\nCORRECTION RESULT:"
+              );
+
+              console.log(
+                correctionResult
+              );
+
+              context += `
+
+CORRECTION TOOL:
+${correction.tool}
+
+CORRECTION RESULT:
+${JSON.stringify(correctionResult).slice(0, 2000)}
+`;
+
+
+            } catch (err) {
+
+              console.log(
+                "\nCORRECTION ERROR:"
+              );
+
+              console.log(err);
+
+            }
+
+          }
+
+          context += `
+
+SELF CORRECTION:
+${JSON.stringify(correction)}
+`;
+        }
+
+        history.push({
+          tool: toolCall.tool,
+          error: error.message
+        });
+
+        context += `
 
 TOOL FAILED:
 ${toolCall.tool}
@@ -150,15 +254,15 @@ ERROR:
 ${error.message}
 `;
 
-      console.log(
-        `Tool failed: ${error.message}`
-      );
-
-      continue;
+        console.log(
+          `Tool failed: ${error.message}`
+        );
+      }
     }
   }
 
   throw new Error(
     "Agent exceeded maximum steps"
   );
+
 }

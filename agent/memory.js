@@ -1,7 +1,8 @@
 const memoryStore = {
   failures: [],
   successes: [],
-  toolHistory: []
+  toolHistory: [],
+  reflections: []
 };
 
 export function addFailure(entry) {
@@ -27,4 +28,12 @@ export function addToolHistory(entry) {
 
 export function getMemory() {
   return memoryStore;
+}
+
+export function addReflection(item) {
+  memoryStore.reflections.push({
+    ...item,
+    timestamp:
+      new Date().toISOString()
+  });
 }

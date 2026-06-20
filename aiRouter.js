@@ -87,23 +87,17 @@ Rules:
     }
   }
 
-  if (!completion) {
-    throw new Error(
-      "Model unavailable after retries"
-    );
-  }
-
+  if (
+  !completion ||
+  !completion.choices ||
+  completion.choices.length === 0
+) {
+  throw new Error(
+    "Model returned no choices"
+  );
+}
   const message =
     completion.choices[0].message;
-
-  console.log(
-    "MESSAGE:",
-    JSON.stringify(
-      message,
-      null,
-      2
-    )
-  );
 
   const raw =
     message?.content;
