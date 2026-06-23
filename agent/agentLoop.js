@@ -39,10 +39,10 @@ MEMORY:
 ${JSON.stringify(memory, null, 2)}
 `;
 
-console.log(
-  "\nCONTEXT SENT TO AI:\n",
-  enrichedContext
-);
+    console.log(
+      "\nCONTEXT SENT TO AI:\n",
+      enrichedContext
+    );
 
 
     const plan =
@@ -218,8 +218,14 @@ ${correction.tool}
 
 CORRECTION RESULT:
 ${JSON.stringify(correctionResult).slice(0, 2000)}
-`;
 
+TASK NOT COMPLETE.
+
+Analyze the correction result.
+
+If the requested goal is not achieved,
+choose another tool and continue.
+`;
 
             } catch (err) {
 

@@ -14,7 +14,7 @@ export async function chooseTool(input) {
     try {
       completion =
         await client.chat.completions.create({
-          model: "nex-agi/nex-n2-pro:free",
+          model: "qwen/qwen3-8b",
           messages: [
             {
               role: "system",
@@ -56,7 +56,17 @@ Rules:
 - No explanations
 - No code blocks
 - Use tools whenever information is missing
-- When enough information exists, return done=true
+
+- Do not return done=true
+  if a tool can still be used.
+
+- If a file is missing,
+  analyze previous tool results
+  and continue searching.
+
+- Only return done=true
+  when the user's goal is achieved
+  or no further action is possible.
 `
             },
             {
@@ -88,14 +98,14 @@ Rules:
   }
 
   if (
-  !completion ||
-  !completion.choices ||
-  completion.choices.length === 0
-) {
-  throw new Error(
-    "Model returned no choices"
-  );
-}
+    !completion ||
+    !completion.choices ||
+    completion.choices.length === 0
+  ) {
+    throw new Error(
+      "Model returned no choices"
+    );
+  }
   const message =
     completion.choices[0].message;
 
