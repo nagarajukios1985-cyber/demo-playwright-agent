@@ -3,6 +3,8 @@ import { toolRegistry } from "../toolRegistry.js";
 import { validateTool } from "../core/validateTool.js";
 import { reflect } from "./reflection.js";
 import { selfCorrect } from "./selfCorrection.js";
+import { findFileInFolder } from "./findFile.js";
+import { verify } from "./verify.js";
 
 
 import {
@@ -118,6 +120,14 @@ ${JSON.stringify(memory, null, 2)}
             toolCall.arguments
           );
 
+        if (result?.success === false) {
+          throw new Error(
+            result.error ||
+            result.stderr ||
+            "Tool reported failure"
+          );
+        }
+
         addToolHistory({
           tool: toolCall.tool,
           input: toolCall.arguments,
@@ -153,6 +163,8 @@ ${JSON.stringify(result).slice(0, 2000)}
 `;
 
       } catch (error) {
+
+        let recovered = false;
 
         addFailure({
           tool: toolCall.tool,
@@ -227,31 +239,130 @@ If the requested goal is not achieved,
 choose another tool and continue.
 `;
 
+              /*
+                Recursive Recovery v1
+              
+                If the first recovery listed the root folder, search each
+                top-level directory for the missing filename.
+              */
+              if (
+                correction.tool === "listFiles" &&
+                correction.arguments?.path === "." &&
+                toolCall.tool === "readFile" &&
+                toolCall.arguments?.path
+              ) {
+                const missingFile = toolCall.arguments.path;
+
+                const rootItems = Array.isArray(correctionResult)
+                  ? correctionResult
+                  : [];
+
+                for (const item of rootItems) {
+                  /*
+                    Ignore obvious files. We only want likely folders.
+                    This is a simple first version, not a perfect file detector.
+                  */
+                  if (item.includes(".")) {
+                    continue;
+                  }
+
+                  try {
+                    console.log(`\nSEARCHING FOLDER: ${item}`);
+
+                    const folderFiles = await toolRegistry.listFiles({
+                      path: item
+                    });
+                    console.log(`FILES INSIDE ${item}:`, folderFiles);
+                    console.log("LOOKING FOR:", missingFile);
+
+                    const recoveredPath = findFileInFolder(
+                      missingFile,
+                      item,
+                      folderFiles
+                    );
+
+                    console.log("RECOVERED PATH:", recoveredPath);
+
+                    if (recoveredPath) {
+                      console.log(`\nFOUND FILE: ${recoveredPath}`);
+
+                      const recoveredResult =
+                        await toolRegistry.readFile({
+                          path: recoveredPath
+                        });
+
+                      recovered = true;
+
+                      console.log(`\nRECOVERED FILE RESULT:`);
+                      console.log(recoveredResult);
+
+                      addToolHistory({
+                        tool: "readFile",
+                        input: { path: recoveredPath },
+                        output: recoveredResult
+                      });
+
+                      addSuccess({
+                        tool: "readFile",
+                        input: { path: recoveredPath }
+                      });
+
+                      history.push({
+                        tool: "readFile",
+                        result: recoveredResult,
+                        recovered: true
+                      });
+
+                      context += `
+
+RECURSIVE RECOVERY FOUND FILE:
+${recoveredPath}
+
+RECURSIVE RECOVERY RESULT:
+${JSON.stringify(recoveredResult).slice(0, 2000)}
+
+The requested file was found through folder search.
+Use this result to answer the user.
+`;
+
+                      /*
+                        Stop searching folders. The next agent-loop step will
+                        send the recovered file content back to the AI.
+                      */
+                      break;
+                    }
+                  } catch (searchError) {
+                    /*
+                      Some entries may not be folders or may not be readable.
+                      We skip them and continue the search.
+                    */
+                    console.log(
+                      `Could not search ${item}: ${searchError.message}`
+                    );
+                  }
+                }
+              }
             } catch (err) {
 
               console.log(
                 "\nCORRECTION ERROR:"
               );
-
               console.log(err);
-
             }
-
           }
-
           context += `
 
 SELF CORRECTION:
 ${JSON.stringify(correction)}
 `;
         }
+        if (!recovered) {
+          history.push({
+            tool: toolCall.tool,
+            error: error.message
+          });
 
-        history.push({
-          tool: toolCall.tool,
-          error: error.message
-        });
-
-        context += `
+          context += `
 
 TOOL FAILED:
 ${toolCall.tool}
@@ -260,13 +371,17 @@ ERROR:
 ${error.message}
 `;
 
-        console.log(
-          `Tool failed: ${error.message}`
-        );
+          console.log(
+            `Tool failed: ${error.message}`
+          );
+        } else {
+          console.log(
+            "\nOriginal path failed, but recursive recovery succeeded."
+          );
+        }
       }
     }
   }
-
   throw new Error(
     "Agent exceeded maximum steps"
   );

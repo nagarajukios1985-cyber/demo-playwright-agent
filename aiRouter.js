@@ -1,10 +1,10 @@
 import OpenAI from "openai";
-import "dotenv/config";
+// import "dotenv/config";
 import { parseAIResponse } from "./agent/parser.js"
 
 const client = new OpenAI({
-  apiKey: process.env.OPENROUTER_API_KEY,
-  baseURL: "https://openrouter.ai/api/v1",
+  baseURL: "http://127.0.0.1:1234/v1",
+  apiKey: "lm-studio",
 });
 
 export async function chooseTool(input) {

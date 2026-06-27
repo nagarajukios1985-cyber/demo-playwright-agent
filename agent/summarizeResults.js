@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import "dotenv/config";
+// import "dotenv/config";
 
 const client = new OpenAI({
   baseURL: "http://localhost:1234/v1",
