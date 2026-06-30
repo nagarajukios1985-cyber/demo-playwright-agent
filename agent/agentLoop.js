@@ -128,6 +128,28 @@ ${JSON.stringify(memory, null, 2)}
           );
         }
 
+
+        const verification =
+          verify(
+            toolCall.tool,
+            toolCall.arguments,
+            result
+          );
+
+        console.log(
+          "\nVERIFICATION:"
+        );
+
+        console.log(
+          verification
+        );
+
+        if (!verification.verified) {
+          throw new Error(
+            verification.message
+          );
+        }
+
         addToolHistory({
           tool: toolCall.tool,
           input: toolCall.arguments,
